@@ -10,9 +10,11 @@ import (
 )
 
 func (dlm *dynamoLockManager) provisionTable() {
-	_, err := dlm.dynamo.DescribeTable(&dynamodb.DescribeTableInput{
+	dt, err := dlm.dynamo.DescribeTable(&dynamodb.DescribeTableInput{
 		TableName: aws.String(dlm.tableName),
 	})
+
+	log.Println(dt.String())
 
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {

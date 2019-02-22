@@ -8,8 +8,10 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/google/uuid"
 )
 
 type dynamoLockManager struct {
@@ -20,18 +22,23 @@ type dynamoLockManager struct {
 	localLocks       map[string]interface{}
 	mux              sync.Mutex
 	ticker           *time.Ticker
-	dynamo           *dynamodb.DynamoDB
+	dynamo           dynamodb.DynamoDB
+	awsConfig        *aws.Config
+	session          *session.Session
 }
 
-func New(tableName string) dynamoLockManager {
+func New(config *aws.Config, tableName string) DistributedLockManager {
 	return dynamoLockManager{
 		tableName:        tableName,
 		defaultLeaseTime: 30000,
+		jitterTolerance:  1000,
 		localLocks:       make(map[string]interface{}),
+		awsConfig:        config,
+		nodeID:           uuid.New().String(),
 	}
 }
 
-func (dlm *dynamoLockManager) AcquireLock(id string) bool {
+func (dlm dynamoLockManager) AcquireLock(id string) bool {
 
 	lock := lock{
 		ID:        id,
@@ -54,9 +61,10 @@ func (dlm *dynamoLockManager) AcquireLock(id string) bool {
 		},
 	}
 
-	_, err = dlm.dynamo.PutItem(params)
+	resp, err := dlm.dynamo.PutItem(params)
 
 	if err == nil {
+		log.Println(resp.GoString())
 		dlm.mux.Lock()
 		defer dlm.mux.Unlock()
 		dlm.localLocks[id] = nil
@@ -76,7 +84,7 @@ func (dlm *dynamoLockManager) AcquireLock(id string) bool {
 	return false
 }
 
-func (dlm *dynamoLockManager) ReleaseLock(id string) {
+func (dlm dynamoLockManager) ReleaseLock(id string) {
 	dlm.mux.Lock()
 	delete(dlm.localLocks, id)
 	dlm.mux.Unlock()
@@ -97,12 +105,15 @@ func (dlm *dynamoLockManager) ReleaseLock(id string) {
 	})
 }
 
-func (dlm *dynamoLockManager) Start() {
+func (dlm dynamoLockManager) Start() {
+	//sess := session.Must(session.NewSession(dlm.awsConfig))
+	dlm.session = session.Must(session.NewSession(dlm.awsConfig))
+	dlm.dynamo = &dynamodb.New(dlm.session)
 	dlm.provisionTable()
-	dlm.ticker = time.NewTicker(500 * time.Millisecond)
-	go dlm.sendHeartbeat()
+	//dlm.ticker = time.NewTicker(500 * time.Millisecond)
+	//go sendHeartbeat(dlm)
 }
 
-func (dlm *dynamoLockManager) Stop() {
+func (dlm dynamoLockManager) Stop() {
 	dlm.ticker.Stop()
 }
