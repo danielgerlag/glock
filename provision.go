@@ -14,19 +14,20 @@ func (dlm *dynamoLockManager) provisionTable() {
 		TableName: aws.String(dlm.tableName),
 	})
 
-	log.Println(dt.String())
+	if err == nil {
+		log.Println("Table (" + dlm.tableName + ") exists at " + *dt.Table.TableArn)
+		return
+	}
 
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case dynamodb.ErrCodeResourceNotFoundException:
-				dlm.createTable()
-			default:
-				log.Panicln(aerr.Error())
-			}
-		} else {
+	if aerr, ok := err.(awserr.Error); ok {
+		switch aerr.Code() {
+		case dynamodb.ErrCodeResourceNotFoundException:
+			dlm.createTable()
+		default:
 			log.Panicln(aerr.Error())
 		}
+	} else {
+		log.Panicln(aerr.Error())
 	}
 }
 
@@ -45,6 +46,7 @@ func (dlm *dynamoLockManager) createTable() {
 		},
 	}
 
+	log.Println("Creating table " + dlm.tableName)
 	_, err := dlm.dynamo.CreateTable(params)
 	if err != nil {
 		log.Panicln(err.Error())
@@ -57,6 +59,7 @@ func (dlm *dynamoLockManager) createTable() {
 		})
 
 		if *poll.Table.TableStatus == "ACTIVE" {
+			log.Println("Created table " + dlm.tableName)
 			return
 		}
 	}

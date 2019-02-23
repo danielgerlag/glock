@@ -9,13 +9,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-func sendHeartbeat(dlm dynamoLockManager) {
+func sendHeartbeat(dlm *dynamoLockManager) {
 	for range dlm.ticker.C {
+		log.Println("Renewing active leases")
 		renewLeases(dlm)
 	}
 }
 
-func renewLeases(dlm dynamoLockManager) {
+func renewLeases(dlm *dynamoLockManager) {
 	dlm.mux.Lock()
 	defer dlm.mux.Unlock()
 
