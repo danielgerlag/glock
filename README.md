@@ -22,6 +22,12 @@ Once the expiry time has elapsed or the owning node releases the lock, it become
 1. New up an instance of DynamoDb lock manager
 
 	```go
+	import (
+		"github.com/aws/aws-sdk-go/aws"
+		"github.com/danielgerlag/glock"
+	)
+	
+	...
 	config := &aws.Config{
     	Region:   aws.String("us-east-1"),
     }
